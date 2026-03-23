@@ -160,3 +160,144 @@ func main() {
 	http.ListenAndServe(":8080", r)
 }
 ```
+
+# Authentication Tests
+
+**Goal:** Write table-driven tests for the JSON body parsing in the Login handler, and test the HTTP header extraction in our JWT middleware.
+
+---
+
+## Step 1: Testing the Login Handler
+
+Create a new file: `internal/handlers/auth_test.go`. Because this endpoint expects a JSON body, we will use `strings.NewReader` to simulate the incoming request payloads.
+
+```go
+package handlers
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestLogin(t *testing.T) {
+	tests := []struct {
+		name           string
+		payload        LoginRequest
+		expectedStatus int
+	}{
+		{
+			name:           "Valid credentials",
+			payload:        LoginRequest{Username: "admin", Password: "password123"},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Invalid password",
+			payload:        LoginRequest{Username: "admin", Password: "wrong"},
+			expectedStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Convert our struct payload into JSON bytes
+			body, _ := json.Marshal(tt.payload)
+			req, _ := http.NewRequest("POST", "/login", bytes.NewBuffer(body))
+			
+			rr := httptest.NewRecorder()
+			handler := http.HandlerFunc(Login)
+
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, tt.expectedStatus)
+			}
+		})
+	}
+}
+```
+
+---
+
+## Step 2: Testing the Middleware
+
+Create a new file: `internal/middleware/auth_test.go`. To test middleware, we create a dummy "next" handler that just returns a 200 OK. If the middleware fails, it will block the request and return a 401. If it succeeds, it passes through to our dummy handler.
+
+```go
+package middleware
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"[github.com/golang-jwt/jwt/v5](https://github.com/golang-jwt/jwt/v5)"
+	"lex-router/internal/handlers"
+)
+
+// Helper function to generate a real token for our success test
+func generateValidToken() string {
+	claims := jwt.MapClaims{
+		"username": "admin",
+		"exp":      time.Now().Add(time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, _ := token.SignedString(handlers.SecretKey)
+	return tokenString
+}
+
+func TestRequireJWT(t *testing.T) {
+	// A dummy handler to simulate our protected endpoint
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Wrap our dummy handler in the middleware
+	handlerToTest := RequireJWT(nextHandler)
+
+	tests := []struct {
+		name           string
+		setupAuth      func(*http.Request)
+		expectedStatus int
+	}{
+		{
+			name:           "Missing Authorization header",
+			setupAuth:      func(r *http.Request) {}, // Do nothing
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "Invalid token",
+			setupAuth: func(r *http.Request) {
+				r.Header.Set("Authorization", "Bearer fake-bad-token")
+			},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "Valid token",
+			setupAuth: func(r *http.Request) {
+				r.Header.Set("Authorization", "Bearer "+generateValidToken())
+			},
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", "/", nil)
+			tt.setupAuth(req) // Apply the specific headers for this test case
+
+			rr := httptest.NewRecorder()
+			handlerToTest.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, tt.expectedStatus)
+			}
+		})
+	}
+}
+```
