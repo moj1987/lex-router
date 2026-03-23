@@ -1,4 +1,4 @@
-module github.com/moj1987/lex-router.git
+module lex-router
 
 go 1.26.1
 

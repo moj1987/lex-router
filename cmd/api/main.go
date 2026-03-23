@@ -1,14 +1,28 @@
 package main
 
-import{
+import (
 	"log"
 	"net/http"
 
-	"[github.com/go-chi/chi/v5](https://github.com/go-chi/chi/v5)"
-	"[github.com/go-chi/chi/v5/middleware](https://github.com/go-chi/chi/v5/middleware)"
-}
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"lex-router/internal/database"
+	"lex-router/internal/handlers"
+)
 
 func main() {
+	db := database.Connect()
+	env := &handlers.Env{DB: db}
+
 	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("API is running"))
+	})
 	
+	r.Get("/requests", env.GetServeRequests)
+
+	log.Println("Server starting on :8080...")
+	http.ListenAndServe(":8080", r)
 }

@@ -230,5 +230,3 @@ func TestHealthCheck(t *testing.T) {
 3. Start the server: `go run cmd/api/main.go`
 4. Test the API in another terminal: `curl http://localhost:8080/health`
 ```
-
-Do you want to run through the Go and VS Code installation right now, or will you be starting this at a later time?
