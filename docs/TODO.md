@@ -1,0 +1,3 @@
+- sqlx and andavnce db quries 
+- bcrypt and hashing paswrods for users 
+- Chi and intercept and middleware 
