@@ -7,8 +7,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
+
 func Connect() *sqlx.DB {
-	dsn := "postgres://user:password@localhost:5432/lex_router_db?sslmode=disable"
+    // Connects to the local native Postgres server using the default Mac setup
+	dsn := "postgres://localhost:5432/lex_router_db?sslmode=disable"
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
 		log.Fatalln("Failed to connect to database:", err)

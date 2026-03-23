@@ -1,14 +1,17 @@
-# Lex Router API - Phase 1 Setup & Development Guide
+Create a new db 
 
-**Goal:** Build a "Service of Process" API using Go, `chi`, PostgreSQL (via Docker), and `sqlx`.
+```bash
+createdb lex_router_db
+```
+*(Alternatively, you can open DataGrip, connect to your local `localhost:5432` server, right-click, and create a new database named `lex_router_db`).*
+
+
+# Lex Router - Phase 1 Setup & Development Guide
+
+**Goal:** Build a "Service of Process" API using Go, `chi`, local PostgreSQL, and `sqlx`.
 
 ## Prerequisites
-
-Open your Zsh terminal and install Go using Homebrew:
-```bash
-brew install go
-```
-Open VS Code and install the official **Go** extension (by the Go Team at Google).
+Ensure Go is installed (`brew install go`) and your local PostgreSQL server is running.
 
 ---
 
@@ -21,9 +24,9 @@ cd lex-router
 go mod init lex-router
 
 # Install dependencies
-go get -u [github.com/go-chi/chi/v5](https://github.com/go-chi/chi/v5)
-go get -u [github.com/jmoiron/sqlx](https://github.com/jmoiron/sqlx)
-go get -u [github.com/lib/pq](https://github.com/lib/pq)
+go get -u github.com/go-chi/chi/v5
+go get -u github.com/jmoiron/sqlx
+go get -u github.com/lib/pq
 ```
 
 ---
@@ -40,31 +43,7 @@ mkdir -p internal/database
 
 ---
 
-## Step 3: Database Setup (Docker)
-
-Create a `docker-compose.yml` file in your project root to run PostgreSQL:
-
-```yaml
-version: '3.8'
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: lex_router_db
-    ports:
-      - "5432:5432"
-```
-
-Start the database in the background:
-```bash
-docker compose up -d
-```
-
----
-
-## Step 4: Domain Models & Database Connection
+## Step 3: Domain Models & Database Connection
 
 **1. Create `internal/models/models.go`:**
 ```go
@@ -94,18 +73,18 @@ package database
 import (
 	"log"
 
-	"[github.com/jmoiron/sqlx](https://github.com/jmoiron/sqlx)"
-	_ "[github.com/lib/pq](https://github.com/lib/pq)"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 )
 
 func Connect() *sqlx.DB {
-	dsn := "postgres://user:password@localhost:5432/proof_db?sslmode=disable"
+    // Connects to the local native Postgres server using the default Mac setup
+	dsn := "postgres://localhost:5432/proof_db?sslmode=disable"
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
 		log.Fatalln("Failed to connect to database:", err)
 	}
 	
-	// Create tables if they don't exist
 	schema := `
 	CREATE TABLE IF NOT EXISTS law_firms (
 		id SERIAL PRIMARY KEY,
@@ -127,7 +106,7 @@ func Connect() *sqlx.DB {
 
 ---
 
-## Step 5: The Router & Handlers
+## Step 4: The Router & Handlers
 
 **1. Create `internal/handlers/serve_requests.go`:**
 ```go
@@ -138,7 +117,7 @@ import (
 	"net/http"
 
 	"[github.com/jmoiron/sqlx](https://github.com/jmoiron/sqlx)"
-	"proof-api/internal/models"
+	"lex-router/internal/models"
 )
 
 type Env struct {
@@ -169,8 +148,8 @@ import (
 
 	"[github.com/go-chi/chi/v5](https://github.com/go-chi/chi/v5)"
 	"[github.com/go-chi/chi/v5/middleware](https://github.com/go-chi/chi/v5/middleware)"
-	"proof-api/internal/database"
-	"proof-api/internal/handlers"
+	"lex-router/internal/database"
+	"lex-router/internal/handlers"
 )
 
 func main() {
@@ -189,44 +168,4 @@ func main() {
 	log.Println("Server starting on :8080...")
 	http.ListenAndServe(":8080", r)
 }
-```
-
----
-
-## Step 6: Testing
-
-**Create `cmd/api/main_test.go`:**
-```go
-package main
-
-import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-)
-
-func TestHealthCheck(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/health", nil)
-	rr := httptest.NewRecorder()
-	
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("API is running"))
-	})
-
-	handler.ServeHTTP(rr, req)
-
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("wrong status code: got %v want %v", status, http.StatusOK)
-	}
-}
-```
-
----
-
-## Running the Project
-
-1. Ensure Docker is running: `docker compose up -d`
-2. Run the tests: `go test ./cmd/api`
-3. Start the server: `go run cmd/api/main.go`
-4. Test the API in another terminal: `curl http://localhost:8080/health`
 ```
